@@ -20,6 +20,12 @@ builder.Services.AddDbContext<RecordCollectionContext>(options =>
     options.UseNpgsql(connectionString)
     .UseSnakeCaseNamingConvention());
 
+Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.Console()
+                .WriteTo.File("Logs/Logs.txt", rollingInterval: RollingInterval.Day)
+                .CreateLogger();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

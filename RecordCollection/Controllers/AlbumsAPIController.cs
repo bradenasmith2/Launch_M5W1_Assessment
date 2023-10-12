@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using RecordCollection.DataAccess;
+using Serilog;
 
 namespace RecordCollection.Controllers
 {
@@ -18,22 +19,61 @@ namespace RecordCollection.Controllers
         public IActionResult GetAll()
         {
             var albums = _context.Albums.ToList();
-            return new JsonResult(albums);
+            if (albums != null)
+            {
+                return new JsonResult(albums);
+            }
+            else
+            {
+                return new JsonResult("There was an issue, please try again.");
+            }
         }
 
         [HttpGet("{id}")]
-        public IActionResult GetOne(int id)
+        public IActionResult GetOne(int? id)
         {
-            var album = _context.Albums.FirstOrDefault(a => a.Id == id);
-            return new JsonResult(album);
+            int missedEndpoints = 0;
+            if (id != null)
+            {
+                var album = _context.Albums.FirstOrDefault(a => a.Id == id);
+                return new JsonResult(album);
+            }
+            else if (_context.Albums.Where(e => e.Id == id).Any())
+            {
+                return new JsonResult("That ID does not exist, please try another.");
+            }
+            else
+            {
+                Log.Information($"[#{missedEndpoints++}] User's have missed the Albums/GetOne endpoint.");
+                return new JsonResult("That endpoint was not found, please check spelling and try again.");
+            }
         }
 
         [HttpDelete("{id}")]
-        public void DeleteOne(int id)
+        public IActionResult DeleteOne(int id)
         {
-            var album = _context.Albums.FirstOrDefault(a => a.Id == id);
-            _context.Albums.Remove(album);
-            _context.SaveChanges();
+            int errorCount = 0;
+            if(id != null)
+            {
+                try
+                {
+                    var album = _context.Albums.FirstOrDefault(a => a.Id == id);
+                    _context.Albums.Remove(album);
+                    _context.SaveChanges();
+
+                    return new JsonResult("Deleted.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Fatal($"[#{errorCount++}]DB DELETE FAIL: {ex.Message}");//file and console log
+                    return new JsonResult("There was an issue deleting this album, please try again.");
+                }
+            }
+            else
+            {
+                return new JsonResult("That Album ID was not found, please try another.");
+            }
+            
         }
     }
 }
