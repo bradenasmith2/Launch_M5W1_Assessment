@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.VisualBasic;
 using RecordCollection.DataAccess;
 using RecordCollection.Models;
+using Serilog;
 
 namespace RecordCollection.Controllers
 {
@@ -18,15 +20,35 @@ namespace RecordCollection.Controllers
         public IActionResult Index()
         {
             var albums = _context.Albums.ToList();
+            if(albums == null)
+            {
+                return NotFound("Albums Not Found.");
+            }
             return View(albums);
         }
 
         [Route("/albums/{id:int}")]
         public IActionResult Show(int? id)
         {
-            var album = _context.Albums.FirstOrDefault(a => a.Id == id);
+            int errorCount = 0;//count the total times this error is recieved
+            if (id != null)//nullable
+            {
+                try
+                {
+                    var album = _context.Albums.FirstOrDefault(a => a.Id == id);
 
-            return View(album);
+                    return View(album);
+                }
+                catch (Exception ex)
+                {
+                    Log.Information($"[#{errorCount++}] - {ex.Message}");//file and console log
+                    return NotFound(ex.Message);
+                }
+            }
+            else//(if id == null)
+            {
+                return NotFound("That Album ID was not found, please try another.");
+            }
         }
 
         public IActionResult New()
@@ -35,27 +57,57 @@ namespace RecordCollection.Controllers
         }
 
         [HttpPost]
-        public IActionResult Create(Album album)
+        public IActionResult Create(Album album)//nullable
         {
-            _context.Albums.Add(album);
-            _context.SaveChanges();
+            int failedCreate = 0;
+            int errorCount = 0;//count the total times this error is recieved
+            if(!ModelState.IsValid)
+            {
+                Log.Warning($"[#{failedCreate++}] Object ModelState was invalid.");
+                return NotFound();
+            }
+            else
+            {
+                try
+                {
+                    _context.Albums.Add(album);
+                    _context.SaveChanges();
+                }
+                catch(Exception ex)
+                {
+                    Log.Fatal($"[#{errorCount++}]DB SAVE FAIL: {ex.Message}");//file and console log
+                }
 
-            _logger.Information("this is the create action");
-
-            return RedirectToAction(nameof(Index));
+                return Redirect("/albums");
+            }
         }
 
         [HttpPost]
         [Route("/albums/{id:int}")]
         public IActionResult Delete(int? id)
         {
-            var album = _context.Albums.FirstOrDefault(a => a.Id == id);
-            _context.Albums.Remove(album);
-            _context.SaveChanges();
+            int errorCount = 0;
+                if(id != null)
+                {
+                    try 
+                    {
+                        var album = _context.Albums.FirstOrDefault(a => a.Id == id);
+                        _context.Albums.Remove(album);
+                        _context.SaveChanges();
 
-            _logger.Fatal($"Success! {album.Title} was removed from the database.");
-
-            return RedirectToAction(nameof(Index));
+                        Log.Information($"Success! {album.Title} was removed from the database.");//file and console log (not mine)
+                    return Redirect("/albums");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Fatal($"[#{errorCount++}]DB DELETE FAIL: {ex.Message}");//file and console log
+                    return NotFound("There was an issue deleting this album, Please try again.");
+                    }
+                }
+                else
+                {
+                    return NotFound("That Album ID was not found, please try another.");
+                }
         }
     }
 }
